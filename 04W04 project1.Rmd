@@ -1,0 +1,672 @@
+---
+title: "04W04 Code"
+author: "Wenfei Mao, Jingchao Yang, Hong Cao"
+date: "02/23/2024"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library("circular")
+library("stats")
+library("GGally")
+library("dplyr")
+library("readxl")
+library("sas7bdat")
+library("corrplot")
+library("tidyverse")
+library("car")
+library("survival")
+library("ggplot2")
+library("gridExtra")
+library("psych")
+library("corrplot")
+library("olsrr")
+library("cowplot")
+library("ggplot2")
+library("lmtest")
+```
+
+*Data description*
+```{r}
+data_Yang <- read_excel("C:/Users/windu/Desktop/Data of Jingchao Yang.xlsx")
+data_Mao <- read_excel("C:/Users/windu/Desktop/Mao(1).xlsx")
+data_Cao <- read_excel("C:/Users/windu/Desktop/Cao(1).xlsx")
+
+data_Yang$Individual <- 'Yang'
+data_Mao$Individual <- 'Mao'
+data_Cao$Individual <- 'Cao'
+
+```
+
+```{r}
+#Ang change
+library(dplyr)
+Pickup.1st_1 <- format(data_Yang$Pickup.1st, "%H:%M:%S")
+hours_1 <- as.numeric(format(data_Yang$Pickup.1st, "%H"))
+minutes_1 <- as.numeric(format(data_Yang$Pickup.1st, "%M"))
+seconds_1 <- as.numeric(format(data_Yang$Pickup.1st, "%S"))
+time_in_hours_1 <- hours_1 + minutes_1/60 + seconds_1/3600
+Pickup.1st_angle <- (time_in_hours_1 / 24)*360
+data_Yang <- cbind(data_Yang,Pickup.1st_angle)
+
+Pickup.1st_2 <- format(data_Mao$Pickup.1st, "%H:%M:%S")
+hours_2 <- as.numeric(format(data_Mao$Pickup.1st, "%H"))
+minutes_2 <- as.numeric(format(data_Mao$Pickup.1st, "%M"))
+seconds_2 <- as.numeric(format(data_Mao$Pickup.1st, "%S"))
+time_in_hours_2 <- hours_2 + minutes_2/60 + seconds_2/3600
+Pickup.1st_angle <- (time_in_hours_2 / 24)*360
+data_Mao <- cbind(data_Mao,Pickup.1st_angle)
+
+Pickup.1st_3 <- format(data_Cao$Pickup.1st, "%H:%M:%S")
+hours_3 <- as.numeric(format(data_Cao$Pickup.1st, "%H"))
+minutes_3 <- as.numeric(format(data_Cao$Pickup.1st, "%M"))
+seconds_3 <- as.numeric(format(data_Cao$Pickup.1st, "%S"))
+time_in_hours_3 <- hours_3 + minutes_3/60 + seconds_3/3600
+Pickup.1st_angle <- (time_in_hours_3 / 24)*360
+data_Cao <- cbind(data_Cao,Pickup.1st_angle)
+
+data_combined <- rbind(data_Yang, data_Mao, data_Cao)
+
+model_Yang <- lm(Pickups ~ snow + Total.ST.min + Pickup.1st_angle + Duration_per_use + Proportion_of_SST + hightem + vacation + Weekday, data=data_Yang)
+summary(model_Yang)
+
+model_combined <- lm(Pickups ~ snow + Total.ST.min + Pickup.1st_angle + Duration_per_use + Proportion_of_SST + hightem + vacation + Weekday, data=data_combined)
+summary(model_combined)
+
+```
+```{r}
+selected_vars <- c("Pickups","snow", "Total.ST.min","Pickup.1st_angle","Duration_per_use","Proportion_of_SST","hightem","vacation","Weekday")
+stats <- lapply(data_combined[selected_vars], function(x) {
+  list(
+    Maximum = max(x, na.rm = TRUE),
+    Minimum = min(x, na.rm = TRUE),
+    Median = median(x, na.rm = TRUE),
+    Mean = mean(x, na.rm = TRUE),
+    Q1 = quantile(x, 0.25, na.rm = TRUE),
+    Q3 = quantile(x, 0.75, na.rm = TRUE),
+    Variance = var(x, na.rm = TRUE)
+  )
+})
+stats
+```
+```{r}
+#check for correlation and multicollinearity
+ggpairs(data_combined[,c('Total.ST.min','Proportion_of_SST', 'Pickup.1st_angle', 'hightem', 'Duration_per_use')])
+vif_result <- vif(model_combined)
+print(vif_result)
+plot(model_combined,2)
+```
+
+```{r}
+#ACF plots for continues covariates
+
+variables <- c('Total.ST.min', 'Proportion_of_SST', 'Duration_per_use')
+acf_results <- list()
+
+#ACF for Yang
+par(mfrow=c(1, 3))
+for (var in variables) {
+  acf_result <- acf(data_Yang[[var]], plot = TRUE, main = paste("ACF for", var))
+  acf_results[[var]] <- acf_result
+}
+for (var in variables) {
+  print(paste("ACF values for", var, ":"))
+  print(acf_results[[var]]$acf)
+}
+par(mfrow=c(1, 1))
+
+#ACF for Mao
+par(mfrow=c(1, 3))
+for (var in variables) {
+  acf_result <- acf(data_Mao[[var]], plot = TRUE, main = paste("ACF for", var))
+  acf_results[[var]] <- acf_result
+}
+for (var in variables) {
+  print(paste("ACF values for", var, ":"))
+  print(acf_results[[var]]$acf)
+}
+par(mfrow=c(1, 1))
+
+
+#ACF for Cao
+par(mfrow=c(1, 3))
+for (var in variables) {
+  acf_result <- acf(data_Cao[[var]], plot = TRUE, main = paste("ACF for", var))
+  acf_results[[var]] <- acf_result
+}
+for (var in variables) {
+  print(paste("ACF values for", var, ":"))
+  print(acf_results[[var]]$acf)
+}
+par(mfrow=c(1, 1))
+```
+```{r}
+first.pickup.cir_Yang = circular(data_Yang$Pickup.1st_angle, units = "degrees", template = "clock24")
+plot(first.pickup.cir_Yang, stack = TRUE, bins = 48, col = "blue")
+
+first.pickup.cir_Mao = circular(data_Mao$Pickup.1st_angle, units = "degrees", template = "clock24")
+plot(first.pickup.cir_Mao, stack = TRUE, bins = 48, col = "blue")
+
+first.pickup.cir_Cao = circular(data_Cao$Pickup.1st_angle, units = "degrees", template = "clock24")
+plot(first.pickup.cir_Cao, stack = TRUE, bins = 48, col = "blue")
+
+first.pickup.cir_Combined = circular(data_combined$Pickup.1st_angle, units = "degrees", template = "clock24")
+plot(first.pickup.cir_Combined, stack = TRUE, bins = 48, col = "blue")
+```
+
+```{r}
+#Occupation time curves 
+
+variables2 <- list(
+  Total.ST.min = "Total Screen Time",
+  Proportion_of_SST = "Proportion of SST",
+  Duration_per_use = "Duration per Use"
+)
+calculate_cum_prob <- function(df, variable_name) {
+  variable_data <- na.omit(df[[variable_name]])
+  unique_values <- sort(unique(variable_data), decreasing = F) 
+  freq <- table(factor(variable_data, levels = unique_values))
+  cum_freq <- rev(cumsum(rev(freq))) 
+  cum_prob <- cum_freq / sum(freq)
+  return(data.frame(Value = names(cum_prob),  magnitude = unique_values, CumulativeProbability = cum_prob))
+}
+
+#Occupation time curves for Yang
+
+OTC_plots_Yang <- list()
+for (var_name in names(variables2)) {
+  df_cum_prob <- calculate_cum_prob(data_Yang, var_name)
+
+  p <- ggplot(df_cum_prob, aes(x = magnitude, y = CumulativeProbability)) +
+    geom_point() + 
+    labs(title = variables2[[var_name]], x = "magnitude", y = "P(x >= c)") +
+    theme_minimal()
+  OTC_plots_Yang[[var_name]] <- p
+}
+do.call(grid.arrange, c(OTC_plots_Yang, ncol = 3))
+
+#Occupation time curves for Mao
+OTC_plots_Mao <- list()
+
+for (var_name in names(variables2)) {
+  df_cum_prob <- calculate_cum_prob(data_Mao, var_name)
+  par(mfrow=c(1, 3))
+  p <- ggplot(df_cum_prob, aes(x = magnitude, y = CumulativeProbability)) +
+    geom_point() + 
+    labs(title = variables2[[var_name]], x = "magnitude", y = "P(x >= c)") +
+    theme_minimal()
+  OTC_plots_Mao[[var_name]] <- p
+}
+do.call(grid.arrange, c(OTC_plots_Mao, ncol = 3))
+
+
+#Occupation time curves for Cao
+OTC_plots_Cao <- list()
+
+for (var_name in names(variables2)) {
+  df_cum_prob <- calculate_cum_prob(data_Cao, var_name)
+
+  p <- ggplot(df_cum_prob, aes(x = magnitude, y = CumulativeProbability)) +
+    geom_point() + 
+    labs(title = variables2[[var_name]], x = "magnitude", y = "P(x >= c)") +
+    theme_minimal()
+  OTC_plots_Cao[[var_name]] <- p
+}
+do.call(grid.arrange, c(OTC_plots_Cao, ncol = 3))
+
+
+#Combined data
+OTC_plots_dombined <- list()
+for (var_name in names(variables2)) {
+  df_cum_prob <- calculate_cum_prob(data_combined, var_name)
+
+  p <- ggplot(df_cum_prob, aes(x = magnitude, y = CumulativeProbability)) +
+    geom_point() + 
+    labs(title = variables2[[var_name]], x = "magnitude", y = "P(x >= c)") +
+    theme_minimal()
+  OTC_plots_dombined[[var_name]] <- p
+}
+do.call(grid.arrange, c(OTC_plots_dombined, ncol = 3))
+
+
+```
+
+
+```{r}
+#Time Series plots
+Sys.setlocale("LC_TIME", "en_US")
+
+#Total.ST.min
+TST_Yang <- ggplot(data_Yang, aes(x = Date, y = Total.ST.min)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Daily Total Screen Time for Yang", x = "Date", y = "Screen Time (mins)")
+TST_Mao <- ggplot(data_Mao, aes(x = Date, y = Total.ST.min)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Daily Total Screen Time for Mao", x = "Date", y = "Screen Time (mins)")
+TST_Cao <- ggplot(data_Cao, aes(x = Date, y = Total.ST.min)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Daily Total Screen Time for Cao", x = "Date", y = "Screen Time (mins)")
+grid.arrange(TST_Yang, TST_Mao, TST_Cao, nrow = 3)
+
+ggplot(data_combined, aes(x = Date, y = Total.ST.min, color = Individual)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Daily Total Screen Time",
+       x = "Date",
+       y = "Screen Time (mins)") +
+  theme_minimal() +
+  scale_color_manual(values = c("Yang" = "blue", "Mao" = "red", "Cao" = "green"))
+
+#Pickups
+Pickups_Yang <- ggplot(data_Yang, aes(x = Date, y = Pickups)) +
+  geom_line() +
+  labs(title = "Time Series Plot of number of pickups", x = "Date", y = "number of pickups")
+Pickups_Mao <- ggplot(data_Mao, aes(x = Date, y = Pickups)) +
+  geom_line() +
+  labs(title = "Time Series Plot of number of pickups", x = "Date", y = "number of pickups")
+Pickups_Cao <- ggplot(data_Cao, aes(x = Date, y = Pickups)) +
+  geom_line() +
+  labs(title = "Time Series Plot of number of pickups", x = "Date", y = "number of pickups")
+grid.arrange(Pickups_Yang, Pickups_Mao, Pickups_Cao, nrow = 3)
+
+ggplot(data_combined, aes(x = Date, y = Pickups, color = Individual)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Pickups",
+       x = "Date",
+       y = "Pickups)") +
+  theme_minimal() +
+  scale_color_manual(values = c("Yang" = "blue", "Mao" = "red", "Cao" = "green"))
+
+#Proportion_of_SST
+Proportion_Yang <- ggplot(data_Yang, aes(x = Date, y = Proportion_of_SST)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Proportion_of_SST", x = "Date", y = "Proportion_of_SST")
+Proportion_Mao <- ggplot(data_Mao, aes(x = Date, y = Proportion_of_SST)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Proportion_of_SST", x = "Date", y = "Proportion_of_SST")
+Proportion_Cao <- ggplot(data_Cao, aes(x = Date, y = Proportion_of_SST)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Proportion_of_SST", x = "Date", y = "Proportion_of_SST")
+grid.arrange(Proportion_Yang, Proportion_Mao, Proportion_Cao, nrow = 3)
+
+ggplot(data_combined, aes(x = Date, y = Proportion_of_SST, color = Individual)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Proportion_of_SST",
+       x = "Date",
+       y = "Proportion_of_SST)") +
+  theme_minimal() +
+  scale_color_manual(values = c("Yang" = "blue", "Mao" = "red", "Cao" = "green"))
+
+#Duration per use
+Duration_Yang <- ggplot(data_Yang, aes(x = Date, y = Duration_per_use)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Duration_per_use for Yang", x = "Date", y = "Duration_per_use")
+Duration_Mao <- ggplot(data_Mao, aes(x = Date, y = Duration_per_use)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Duration_per_use for Mao", x = "Date", y = "Duration_per_use")
+Duration_Cao <- ggplot(data_Cao, aes(x = Date, y = Duration_per_use)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Duration_per_use for Cao", x = "Date", y = "Duration_per_use")
+grid.arrange(Duration_Yang, Duration_Mao, Duration_Cao, nrow = 3)
+
+ggplot(data_combined, aes(x = Date, y = Duration_per_use, color = Individual)) +
+  geom_line() +
+  labs(title = "Time Series Plot of Duration_per_use",
+       x = "Date",
+       y = "Duration_per_use") +
+  theme_minimal() +
+  scale_color_manual(values = c("Yang" = "blue", "Mao" = "red", "Cao" = "green"))
+
+```
+
+*Federated Learning*
+*summary statistics of Wenfei Mao*
+```{r}
+library(readxl)
+data <- read_excel("C:/Users/windu/Desktop/620 Data collection-project 1.xlsx")
+head(data)
+```
+
+*Convert exact time to angle*
+```{r}
+library(dplyr)
+Pickup.1st <- format(data$Pickup.1st, "%H:%M:%S")
+hours <- as.numeric(format(data$Pickup.1st, "%H"))
+minutes <- as.numeric(format(data$Pickup.1st, "%M"))
+seconds <- as.numeric(format(data$Pickup.1st, "%S"))
+time_in_hours <- hours + minutes/60 + seconds/3600
+Pickup.1st_angle <- (time_in_hours / 24)*360
+print(Pickup.1st_angle)
+```
+```{r}
+#model
+model <- lm(Pickups ~ Total.ST.min + Pickup.1st_angle + Proportion_of_SST + Duration_per_use + Xt + Zt + snow + hightem, data = data) #Xt=0 - weekends Xt=1 - Weekdays; Zt=0 - vacation Zt=1 - non-vacation
+summary(model)
+```
+```{r}
+data$Pickup.1st_angle <- Pickup.1st_angle
+head(data)
+```
+
+
+```{r}
+data$Pickup.1st_angle <- Pickup.1st_angle
+# 1.mean of the predicator values(X) 
+predicator_values <- select(data, Total.ST.min, Pickup.1st_angle, Proportion_of_SST, Duration_per_use, Xt, Zt, snow, hightem)
+mean_predicator <- colMeans(predicator_values)
+print(mean_predicator)
+
+# 2.mean of response values(Y) 
+response_values <- model$model$Pickups
+mean_response <- mean(response_values)
+print(mean_response)
+```
+```{r}
+# 3.SSXY of data-wenfei mao
+X<- data[, -c(1, 2, 4,5,6, 7)]
+X<- as.matrix(X)
+Y<- data$Pickups
+SSXY_mao <- t(X) %*% Y
+print(SSXY_mao)
+```
+```{r}
+#4.SSTx of the data-wenfei mao
+X<- data[, -c(1, 2, 4,5,6, 7)]
+X<- as.matrix(X)
+SSTx_mao <- t(X) %*% X
+print(SSTx_mao)
+```
+```{r}
+#5.SSTy_mao
+Y <- data$Pickups
+SSTy_mao <- t(Y) %*% Y
+print(SSTy_mao)
+```
+
+*summary statistics for hong cao*
+```{r}
+library(readxl)
+data <- read_excel("C:/Users/windu/Desktop/screentime-cao hong.xlsx")
+head(data)
+```
+```{r}
+#model
+model <- lm(Pickups ~ Total.ST.min + Pickup.1st + Proportion_of_SST + Duration_per_use + Xt + Zt + snow + hightemp, data = data) #Xt=0 - weekends Xt=1 - Weekdays; Zt=0 - vacation Zt=1 - non-vacation
+summary(model)
+```
+```{r}
+# 1.mean of the predicator values(X) 
+predicator_values <- select(data, Total.ST.min, Pickup.1st, Proportion_of_SST, Duration_per_use, Xt, Zt, snow, hightemp)
+mean_predicator_cao <- colMeans(predicator_values)
+print(mean_predicator_cao)
+
+# 2.mean of response values(Y) 
+response_values <- model$model$Pickups
+mean_response_cao <- mean(response_values)
+print(mean_response_cao)
+```
+```{r}
+#3.SSTy_cao
+Y <- data$Pickups
+SSTy_cao <- t(Y) %*% Y
+print(SSTy_cao)
+```
+```{r}
+#4.SSTx_cao
+X<- data[, -c(1, 2, 4,5,6)]
+X<- as.matrix(X)
+SSTx_cao <- t(X) %*% X
+print(SSTx_cao)
+```
+```{r}
+#5.SSXY_cao
+X<- data[, -c(1, 2, 4,5,6)]
+X<- as.matrix(X)
+Y<- data$Pickups
+SSXY_cao <- t(X) %*% Y
+print(SSXY_cao)
+```
+*summary statistics for jingchao yang*
+```{r}
+library(readxl)
+data <- read_excel("C:/Users/windu/Desktop/Yang (1).xlsx")
+head(data)
+```
+```{r}
+library(dplyr)
+Pickup.1st <- format(data$Pickup.1st, "%H:%M:%S")
+hours <- as.numeric(format(data$Pickup.1st, "%H"))
+minutes <- as.numeric(format(data$Pickup.1st, "%M"))
+seconds <- as.numeric(format(data$Pickup.1st, "%S"))
+time_in_hours <- hours + minutes/60 + seconds/3600
+Pickup.1st_angle <- (time_in_hours / 24)*360
+print(Pickup.1st_angle)
+```
+```{r}
+#model
+model <- lm(Pickups ~ Total.ST.min + Pickup.1st_angle + Proportion_of_SST + Duration_per_use + Xt + Zt + snow + hightem, data = data) #Xt=0 - weekends Xt=1 - Weekdays; Zt=0 - vacation Zt=1 - non-vacation
+summary(model)
+```
+```{r}
+data$Pickup.1st_angle <- Pickup.1st_angle
+head(data)
+```
+```{r}
+# 1.mean of the predicator values(X) 
+predicator_values <- select(data, Total.ST.min, Pickup.1st_angle, Proportion_of_SST, Duration_per_use, Xt, Zt, snow, hightem)
+mean_predicator_Yang <- colMeans(predicator_values)
+print(mean_predicator_Yang)
+
+# 2.mean of response values(Y) 
+response_values <- model$model$Pickups
+mean_response_Yang <- mean(response_values)
+print(mean_response_Yang)
+```
+```{r}
+#3.SSTx_Yang
+X<- data[, -c(1, 2, 4,5,6, 7 )]
+X<- as.matrix(X)
+SSTx_Yang <- t(X) %*% X
+print(SSTx_Yang)
+```
+```{r}
+#4.SSTy_Yang
+Y <- data$Pickups
+SSTy_Yang <- t(Y) %*% Y
+print(SSTy_Yang)
+```
+```{r}
+#5.SSXY_Yang
+X<- data[, -c(1, 2, 4,5,6, 7 )]
+X<- as.matrix(X)
+Y<- data$Pickups
+SSXY_Yang <- t(X) %*% Y
+print(SSXY_Yang)
+```
+*Combined the summary statistics of three team members to formulate federated learning*
+```{r}
+#OLS estimate: calculate beta-hat
+beta_hat <- solve(SSTx_mao + SSTx_cao + SSTx_Yang)  %*% (SSXY_cao + SSXY_mao + SSXY_Yang)
+print(beta_hat)
+```
+```{r}
+#standard error in the federated learning
+sigma_hat_squared <- ((SSTy_mao + SSTy_Yang + SSTy_cao) - 2 * t(beta_hat) %*% (SSXY_mao + SSXY_Yang + SSXY_cao) + t(beta_hat) %*% (SSTx_mao + SSTx_Yang + SSTx_cao) %*% beta_hat) / (44*3 - 9)
+inverse_SSTx <- solve(SSTx_mao + SSTx_Yang + SSTx_cao)
+se_beta_hat <- sqrt(sigma_hat_squared * inverse_SSTx[1,1])
+print(se_beta_hat)
+```
+```{r}
+#The t test statistic 
+j <- 1
+beta_hat_j <- beta_hat[j]
+se_beta_hat_j <- se_beta_hat[j]
+t_statistic_j <- beta_hat_j / se_beta_hat_j
+print(t_statistic_j)
+```
+```{r}
+#Assessing Goodness-of-fit in Federated Learning Paradigm
+#one-round implementation
+n = 44*3
+p = 9
+RSS_mao <- SSTy_mao - 2 * t(beta_hat) %*% (SSXY_mao) + t(beta_hat) %*% (SSTx_mao) %*% beta_hat
+RSS_Yang <- SSTy_Yang - 2 * t(beta_hat) %*% (SSXY_Yang) + t(beta_hat) %*% (SSTx_Yang) %*% beta_hat
+RSS_Cao <- SSTy_cao - 2 * t(beta_hat) %*% (SSXY_cao) + t(beta_hat) %*% (SSTx_cao) %*% beta_hat
+RSS <- (RSS_mao + RSS_Yang + RSS_Cao) / 3
+AIC <- n*log(RSS) + 2*p
+print(AIC)
+```
+```{r}
+#Adjusted Coefficient of Determination in Federated Learning Paradigm
+n = 44*3
+p = 9
+mean_response_TSS <- (44/44*3)*mean_response_cao + (44/44*3)*mean_response_mao + (44/44*3)*mean_response_Yang
+SSTy_TSS <- (SSTy_mao + SSTy_cao + SSTy_Yang)
+TSS <- SSTy_TSS - n*(mean_response_TSS^2)
+RSS <- exp((AIC-2*p)/n)
+R_a_square <- 1- (RSS/(n-p)/TSS/(n-1))
+print(R_a_square)
+```
+*confirmation analysis*
+```{r}
+library(readxl)
+data=read_xlsx("stall.xlsx")
+head(data,5)
+```
+```{r}
+library(dplyr)
+Pickup.1st <- format(data$`Pickup.1st`, "%H:%M:%S")
+hours <- as.numeric(format(data$`Pickup.1st`, "%H"))
+minutes <- as.numeric(format(data$`Pickup.1st`, "%M"))
+seconds <- as.numeric(format(data$`Pickup.1st`, "%S"))
+time_in_hours <- hours + minutes/60 + seconds/3600
+Pickup.1st_angle <- (time_in_hours / 24)*360
+print(Pickup.1st_angle)
+```
+
+```{r}
+model_combined <- lm(Pickups ~ Weekday
+ + Total.ST.min + Duration_per_use + Proportion_of_SST + Pickup.1st_angle+ hightem + vacation + snow, data=data)
+summary(model_combined)
+```
+```{r}
+data$Pickup.1st_angle <- Pickup.1st_angle
+head(data)
+```
+
+```{r}
+#1.SSTX_combined
+X<- data[, -c(1, 2,3, 4,5)]
+X<- as.matrix(X)
+SSTx_combined <- t(X) %*% X
+print(SSTx_combined) 
+```
+```{r}
+#2.SSTy_combined
+Y <- data$Pickups
+SSTy_combined <- t(Y) %*% Y
+print(SSTy_combined)
+```
+```{r}
+#3.SSXY_combined
+X<- data[, -c(1, 2, 3,4,5)]
+X<- as.matrix(X)
+Y<- data$Pickups
+SSXY_combined <- t(X) %*% Y
+print(SSXY_combined)
+```
+```{r}
+#4.mean of the predicator values(X_combined)
+predicator_values_combined <- select(data, Total.ST.min, Pickup.1st_angle, Proportion_of_SST, Duration_per_use, Weekday, vacation, snow, hightem)
+mean_predicator_combined <- colMeans(predicator_values_combined)
+print(mean_predicator_combined)
+```
+```{r}
+#5.mean of response values(Y) 
+mean_response_combined <- mean(data$Pickups)
+print(mean_response_combined)
+```
+
+
+```{r}
+#OLS estimate
+beta_hat_combined <- solve(SSTx_combined)  %*% (SSXY_combined)
+print(beta_hat_combined)
+```
+```{r}
+#standard error 
+sigma_hat_squared_combined <- ((SSTy_combined) - 2 * t(beta_hat_combined) %*% (SSXY_combined) + t(beta_hat_combined) %*% (SSTx_combined) %*% beta_hat_combined) / (44*3 - 9)
+inverse_SSTx_Combined <- solve(SSTx_combined)
+se_beta_hat_combined <- sqrt(sigma_hat_squared_combined * inverse_SSTx_Combined[1,1])
+print(se_beta_hat_combined)
+```
+```{r}
+#The t test statistic 
+j <- 1
+beta_hat_combined_j <- beta_hat_combined[j]
+se_beta_hat_combined_j <- se_beta_hat_combined[j]
+t_statistic_combined_j <- beta_hat_combined_j / se_beta_hat_combined_j
+print(t_statistic_combined_j)
+```
+```{r}
+#Assessing Goodness-of-fit in Federated Learning Paradigm
+#one-round implementation
+n = 44*3
+p = 9
+RSS_combined <- SSTy_combined - 2 * t(beta_hat_combined) %*% (SSXY_combined) + t(beta_hat_combined) %*% (SSTx_combined) %*% beta_hat_combined
+AIC <- n*log(RSS_combined) + 2*p
+print(AIC)
+```
+```{r}
+#Adjusted Coefficient of Determination in Federated Learning Paradigm
+n = 44*3
+p = 9
+mean_response_TSS_Combined <- (44/44*3)*mean_response_combined 
+TSS <- SSTy_combined - n*(mean_response_TSS_Combined^2)
+RSS <- exp((AIC-2*p)/n)
+R_a_square <- 1- (RSS_combined/(n-p)/TSS/(n-1))
+print(R_a_square)
+```
+*residual diagnostics*
+```{r}
+predicted_values <- fitted(model_combined)
+r <- resid(model_combined)
+r_std <- r/ (summary(model_combined)$sig)
+r_stu_i <- rstandard(model_combined)
+r_stu_e <- rstudent(model_combined)
+residuals_matrix <- as.data.frame(cbind(r, r_std, r_stu_i, r_stu_e, predicted_values))
+
+car::avPlots(model_combined)
+psych::pairs.panels(data)
+```
+
+*checking for LINE assumptions*
+```{r}
+# residual plot
+ggplot(data = residuals_matrix, aes(x = predicted_values, y = r)) +
+  geom_point(shape = 1) + 
+  labs(title = "Residuals vs predicted values")
+
+# test for homoscedasticity
+print(bptest(model_combined)) # Breusch-Pagan test
+
+# histogram of the residuals
+hist(residuals_matrix$r)
+
+# QQ plot
+# suggests that residuals follow a normal distribution
+qq_res <- car::qqPlot(residuals_matrix$r)
+# test for normality
+print(shapiro.test(resid(model_combined)))
+
+# test for independence
+print(dwtest(model_combined)) # Durbin-Watson test
+```
+```{r}
+# final diagnostic plots
+car::residualPlots(model_combined, type = "response", cex = 0.25)
+```
+
+
+
